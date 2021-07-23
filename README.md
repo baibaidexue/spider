@@ -1,7 +1,13 @@
 # spider项目介绍
-pull comics from zhahentai(喵绅士)
 
-使用golang + lxn/walk 开发的喵绅士简易漫画下载工具
+下载缓存(喵绅士)漫画win工具，使用golang + lxn/walk 开发
+
+## 使用
+
+* 下载该项目所有文件
+* 双击spider.exe运行
+* 程序自动监听剪切板变化，询问是否下载 ||  手动粘贴地址至主窗体下载
+
 
 ## 运行环境
 仅发布针对于windows的版本
