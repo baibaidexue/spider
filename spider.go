@@ -3,11 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
 	"github.com/lxn/win"
-	"os"
-	"strings"
 )
 
 type godWndMount struct {
