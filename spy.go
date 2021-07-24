@@ -175,11 +175,19 @@ func (w *mangaPullControlWnd) pullImages(ch chan string, savePath, mangaUrl stri
 		w.pullStepInfo.SetText(err.Error())
 		return -1
 	}
-	mangaTitle = strings.Replace(mangaTitle, " ", "", -1)
+	// mangaTitle = strings.Replace(mangaTitle, " ", "", -1)
 	mangaTitle = strings.Replace(mangaTitle, "/", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, "|", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, ":", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, "*", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, "?", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, "\"", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, "<", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, ">", "", -1)
 	if strings.HasPrefix(mangaTitle, "[同人誌H漫畫]") {
 		mangaTitle = mangaTitle[len("[同人誌H漫畫]"):]
 	}
+
 	w.main.SetTitle(mangaTitle)
 	if ch != nil {
 		ch <- mangaTitle
