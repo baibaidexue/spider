@@ -33,21 +33,28 @@ func downloadWndCreate(localSavePath, mangaUrl string) *mangaPullControlWnd {
 			},
 			PushButton{
 				Text: "(╯°□°）╯︵ ┻━┻ metainfo repull",
+
 				OnClicked: func() {
-					wnd.pullMetaInfo(nil, localSavePath, mangaUrl)
+					go wnd.pullMetaInfo(nil, localSavePath, mangaUrl)
 				},
+				Visible:  false,
+				AssignTo: &wnd.metarepull,
 			},
 			PushButton{
 				Text: "(┬┬﹏┬┬) images repull",
 				OnClicked: func() {
-					wnd.pullImages(nil, localSavePath, mangaUrl)
+					go wnd.pullImages(nil, localSavePath, mangaUrl)
 				},
+				Visible:  false,
+				AssignTo: &wnd.imagesrepull,
 			},
 			PushButton{
 				Text: "zip images",
 				OnClicked: func() {
 					wnd.Compress(localSavePath)
 				},
+				Visible:  false,
+				AssignTo: &wnd.zipImage,
 			},
 			Label{AssignTo: &wnd.pullStepInfo},
 			ProgressBar{
@@ -159,10 +166,24 @@ func catchImagesUrls(mangaListPageResult string) []string {
 	return imagesUrls
 }
 
-func (w *mangaPullControlWnd) pullImages(ch chan string, savePath, mangaUrl string) int {
-	w.pullStepInfo.SetText("fetching image url lists...")
+func beautyTitle(origin string) (mangaTitle string) {
+	mangaTitle = strings.Replace(origin, "/", "", -1)
+	mangaTitle = strings.Replace(origin, " ", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, "|", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, ":", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, "*", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, "?", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, "\"", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, "<", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, ">", "", -1)
+	if strings.HasPrefix(mangaTitle, "[同人誌H漫畫]") {
+		mangaTitle = mangaTitle[len("[同人誌H漫畫]"):]
+	}
+	return
+}
 
-	mangaListPageUrl := fmt.Sprintf("%vlist2/", mangaUrl)
+func (w *mangaPullControlWnd) pullImages(ch chan string, savePath, mangaUrl string) int {
+	mangaListPageUrl := mangaUrl + "list2/"
 	fmt.Println("Pull manga images from", mangaListPageUrl)
 	mangaListPageResult, err := HttpGet(mangaListPageUrl)
 	if err != nil {
@@ -175,24 +196,12 @@ func (w *mangaPullControlWnd) pullImages(ch chan string, savePath, mangaUrl stri
 		w.pullStepInfo.SetText(err.Error())
 		return -1
 	}
-	// mangaTitle = strings.Replace(mangaTitle, " ", "", -1)
-	mangaTitle = strings.Replace(mangaTitle, "/", "", -1)
-	mangaTitle = strings.Replace(mangaTitle, "|", "", -1)
-	mangaTitle = strings.Replace(mangaTitle, ":", "", -1)
-	mangaTitle = strings.Replace(mangaTitle, "*", "", -1)
-	mangaTitle = strings.Replace(mangaTitle, "?", "", -1)
-	mangaTitle = strings.Replace(mangaTitle, "\"", "", -1)
-	mangaTitle = strings.Replace(mangaTitle, "<", "", -1)
-	mangaTitle = strings.Replace(mangaTitle, ">", "", -1)
-	if strings.HasPrefix(mangaTitle, "[同人誌H漫畫]") {
-		mangaTitle = mangaTitle[len("[同人誌H漫畫]"):]
-	}
-
+	mangaTitle = beautyTitle(mangaTitle)
+	w.title = mangaTitle
 	w.main.SetTitle(mangaTitle)
 	if ch != nil {
 		ch <- mangaTitle
 	}
-	w.title = mangaTitle
 
 	imagesSavePath := savePath + "/" + mangaTitle + "/" + DIRIMAGES
 	CreatDirIfNotHad(savePath)
@@ -284,17 +293,16 @@ func (w *mangaPullControlWnd) autoDownload(imageSavPath string, imagesUrls []str
 	arry := splitArray(imagesUrls, gates)
 
 	wg := sync.WaitGroup{}
-	for i, url := range arry {
+	for i, urls := range arry {
 		wg.Add(1)
-		go func(workid int, url []string) {
+		go func(workid int, urls []string) {
 			defer func() {
 				wg.Done()
 			}()
 
-			for _, imageUrl := range url {
+			for _, imageUrl := range urls {
 				_, imageFileName := filepath.Split(imageUrl)
 				localname := imageSavPath + "/" + imageFileName
-				fmt.Println("Pulling:", "[", imageUrl, "]", " >> ", localname)
 				err := pullImageFile(localname, imageUrl)
 				if err != nil {
 					fmt.Println("Pull error", err)
@@ -303,7 +311,7 @@ func (w *mangaPullControlWnd) autoDownload(imageSavPath string, imagesUrls []str
 					w.updateImagePullStatus(1)
 				}
 			}
-		}(i, url)
+		}(i, urls)
 	}
 	wg.Wait()
 	if w.imageTotal == w.imageProcessed {
@@ -311,6 +319,9 @@ func (w *mangaPullControlWnd) autoDownload(imageSavPath string, imagesUrls []str
 		w.pullStepInfo.SetText("Compressing...")
 		w.Compress(w.path)
 		w.pullStepInfo.SetText(fmt.Sprintf("Total:%d  Pulled:%d  Failed:%d", w.imageTotal, w.imagePullSucceed, w.imagePullFailed))
+		w.imagesrepull.SetVisible(true)
+		w.metarepull.SetVisible(true)
+		w.zipImage.SetVisible(true)
 
 		ni, _ := walk.NewNotifyIcon(w.main.Form())
 		ni.SetVisible(true)
@@ -321,6 +332,7 @@ func (w *mangaPullControlWnd) autoDownload(imageSavPath string, imagesUrls []str
 
 // 写入文件
 func pullImageFile(localname, url string) error {
+	fmt.Println("Pulling:", "[", url, "]", " >> ", localname)
 	// 读取url的信息
 	resp, err := http.Get(url)
 	if err != nil {
@@ -378,10 +390,11 @@ func pullImageFile(localname, url string) error {
 }
 
 type mangaPullControlWnd struct {
-	main            *walk.Dialog
-	mangaCover      *walk.ImageView
-	pullStepInfo    *walk.Label
-	pullProgressBar *walk.ProgressBar
+	main                               *walk.Dialog
+	mangaCover                         *walk.ImageView
+	pullStepInfo                       *walk.Label
+	pullProgressBar                    *walk.ProgressBar
+	metarepull, imagesrepull, zipImage *walk.PushButton
 
 	imageTotal, imageProcessed, imagePullSucceed, imagePullFailed int
 	updatelock                                                    sync.Mutex
