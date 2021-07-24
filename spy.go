@@ -3,8 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/lxn/walk"
-	. "github.com/lxn/walk/declarative"
 	"io"
 	"net/http"
 	"os"
@@ -13,6 +11,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lxn/walk"
+	. "github.com/lxn/walk/declarative"
 )
 
 func downloadWndCreate(localSavePath, mangaUrl string) *mangaPullControlWnd {
@@ -33,13 +34,13 @@ func downloadWndCreate(localSavePath, mangaUrl string) *mangaPullControlWnd {
 			PushButton{
 				Text: "(╯°□°）╯︵ ┻━┻ metainfo repull",
 				OnClicked: func() {
-					wnd.pullMetaInfo(localSavePath, mangaUrl)
+					wnd.pullMetaInfo(nil, localSavePath, mangaUrl)
 				},
 			},
 			PushButton{
 				Text: "(┬┬﹏┬┬) images repull",
 				OnClicked: func() {
-					wnd.pullImages(localSavePath, mangaUrl)
+					wnd.pullImages(nil, localSavePath, mangaUrl)
 				},
 			},
 			PushButton{
@@ -67,100 +68,82 @@ func downloadWndCreate(localSavePath, mangaUrl string) *mangaPullControlWnd {
 	return &wnd
 }
 
-func (w *mangaPullControlWnd) pullManga(savePath, mangaURL string) {
-	go w.pullImages(savePath, mangaURL)
-	go w.pullMetaInfo(savePath, mangaURL)
-}
+// func (w *mangaPullControlWnd) pullManga(savePath, mangaURL string) {
+// 	go w.pullImages(savePath, mangaURL)
+// 	go w.pullMetaInfo(savePath, mangaURL)
+// }
 
-func (w *mangaPullControlWnd) pullMetaInfo(savePath, mangaUrl string) error {
-	result, err := HttpGet(mangaUrl)
-	if err != nil {
-		fmt.Println("pull meta info failed:", err)
-		return errors.New(fmt.Sprintf("Spycover err:", err))
-	}
-
+func catchCover(result string) (string, error) {
 	coverstr := `<img is="lazyload-image" class="lazyload" width="350" height="" data-src="(.+)" src=`
 	coverret := regexp.MustCompile(coverstr)
 	coverarray := coverret.FindStringSubmatch(result)
 	if len(coverarray) < 2 {
 		fmt.Println("Cover array not match")
-		return errors.New("Cover array not match")
+		return "", errors.New(" Cover array not match")
 	}
-	mangaCoverUrl := coverarray[1]
+	return coverarray[1], nil
+}
 
-	// waiting for title set in pull images
-	var mamgaTitle string
-	for i := 0; i < 20; i++ {
-		mamgaTitle = w.title
-		if len(mamgaTitle) != 0 {
-			break
+func (w *mangaPullControlWnd) pullMetaInfo(ch chan string, savePath, mangaUrl string) error {
+	result, err := HttpGet(mangaUrl)
+	if err != nil {
+		fmt.Println("pull meta info failed:", err)
+		return errors.New(fmt.Sprintf(" Get cover err:%v", err))
+	}
+	mangaCoverUrl, err := catchCover(result)
+	if err != nil {
+		fmt.Println("no cover url catched:", err)
+		return errors.New("cover url catched")
+	}
+
+	// waiting for title from image goroutine
+	var mangaTitle string
+	if ch != nil {
+		mangaTitle = <-ch
+	} else {
+		for i := 0; i < 20; i++ {
+			if len(w.title) != 0 {
+				mangaTitle = w.title
+				break
+			}
+			time.Sleep(500 * time.Microsecond)
 		}
-		time.Sleep(time.Second)
 	}
-	if mamgaTitle == mangaUrl {
-		fmt.Println("pull metainfo get title error")
-		return errors.New("mamgaTitle get error")
-	}
-
-	mangaLocalDir := savePath + "/" + mamgaTitle
+	mangaLocalDir := savePath + "/" + mangaTitle
 	CreatDirIfNotHad(savePath)
 	CreatDirIfNotHad(mangaLocalDir)
 
 	metaInfoMarkDown, err := os.OpenFile(mangaLocalDir+"/"+"meta.md", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
-		fmt.Println("write mangaUrl file imagePullFailed", err)
+		fmt.Println("open meta file Failed:", err)
 	} else {
-		metaInfoMarkDown.WriteString("### " + mamgaTitle + "\n")
+		metaInfoMarkDown.WriteString("### " + mangaTitle + "\n")
 		metaInfoMarkDown.WriteString(mangaUrl + "\n")
 		metaInfoMarkDown.Sync()
 		metaInfoMarkDown.Close()
 	}
 
-	mangaSavName := mangaLocalDir + "/" + mamgaTitle + filepath.Ext(mangaCoverUrl)
+	mangaSavName := mangaLocalDir + "/" + mangaTitle + filepath.Ext(mangaCoverUrl)
 	fmt.Println(mangaCoverUrl)
 	if nil == pullImageFile(mangaSavName, mangaCoverUrl) {
 		img, err := walk.NewImageFromFileForDPI(mangaSavName, 96)
 		if err != nil {
-			return errors.New("Load mangaCover image from file imagePullFailed.")
+			return errors.New(" Load mangaCover image from file imagePullFailed.")
 		}
 		w.mangaCover.SetImage(img)
 	}
 	return nil
 }
-
-func (w *mangaPullControlWnd) pullImages(savePath, mangaUrl string) int {
-	w.pullStepInfo.SetText("Fetching manga image lists...")
-
-	mangaListPageUrl := fmt.Sprintf("%vlist2/", mangaUrl)
-	fmt.Println("Pull manga images from", mangaListPageUrl)
-	mangaListPageResult, err := HttpGet(mangaListPageUrl)
-	if err != nil {
-		fmt.Println("Get image list page err:", err)
-		w.pullStepInfo.SetText(err.Error())
-		return -1
-	}
-
+func catchTitle(mangaListPageResult string) (string, error) {
 	titleMatchPolicyStr := `<title>(.*)&raquo;`
 	titleMatchPolicy := regexp.MustCompile(titleMatchPolicyStr)
 	titlearray := titleMatchPolicy.FindStringSubmatch(mangaListPageResult)
 	if len(titlearray) < 2 {
-		w.pullStepInfo.SetText("mangaTitle array error")
-		return -1
+		return "", errors.New("mangaTitle no match correct")
 	}
-	mangaTitle := titlearray[1]
-	mangaTitle = strings.Replace(mangaTitle, " ", "", -1)
-	mangaTitle = strings.Replace(mangaTitle, "/", "", -1)
-	if strings.HasPrefix(mangaTitle, "[同人誌H漫畫]") {
-		mangaTitle = mangaTitle[len("[同人誌H漫畫]"):]
-	}
-	w.main.SetTitle(mangaTitle)
-	w.title = mangaTitle
-
-	imagesSavePath := savePath + "/" + mangaTitle + "/" + DIRIMAGES
-	CreatDirIfNotHad(savePath)
-	CreatDirIfNotHad(savePath + "/" + mangaTitle)
-	CreatDirIfNotHad(imagesSavePath)
-
+	return titlearray[1], nil
+}
+func catchImagesUrls(mangaListPageResult string) []string {
 	var imagesUrls = make([]string, 0)
 	str := `<img class="list-img lazyload" src=".+" data-src=".+"`
 	ret := regexp.MustCompile(str)
@@ -173,44 +156,65 @@ func (w *mangaPullControlWnd) pullImages(savePath, mangaUrl string) int {
 			imagesUrls = append(imagesUrls, imageMatchResult[1])
 		}
 	}
+	return imagesUrls
+}
 
+func (w *mangaPullControlWnd) pullImages(ch chan string, savePath, mangaUrl string) int {
+	w.pullStepInfo.SetText("fetching image url lists...")
+
+	mangaListPageUrl := fmt.Sprintf("%vlist2/", mangaUrl)
+	fmt.Println("Pull manga images from", mangaListPageUrl)
+	mangaListPageResult, err := HttpGet(mangaListPageUrl)
+	if err != nil {
+		fmt.Println("Get image list page err:", err)
+		w.pullStepInfo.SetText(err.Error())
+		return -1
+	}
+	mangaTitle, err := catchTitle(mangaListPageResult)
+	if err != nil {
+		w.pullStepInfo.SetText(err.Error())
+		return -1
+	}
+	mangaTitle = strings.Replace(mangaTitle, " ", "", -1)
+	mangaTitle = strings.Replace(mangaTitle, "/", "", -1)
+	if strings.HasPrefix(mangaTitle, "[同人誌H漫畫]") {
+		mangaTitle = mangaTitle[len("[同人誌H漫畫]"):]
+	}
+	w.main.SetTitle(mangaTitle)
+	if ch != nil {
+		ch <- mangaTitle
+	}
+	w.title = mangaTitle
+
+	imagesSavePath := savePath + "/" + mangaTitle + "/" + DIRIMAGES
+	CreatDirIfNotHad(savePath)
+	CreatDirIfNotHad(savePath + "/" + mangaTitle)
+	CreatDirIfNotHad(imagesSavePath)
+
+	imagesUrls := catchImagesUrls(mangaListPageResult)
 	if len(imagesUrls) == 0 {
 		w.pullStepInfo.SetText("Error at fetch pics, recv 0 picsurl from regexp")
 		return -1
 	}
-
-	// check if exsit already files
-	notexsitsrcs := delbylocal(imagesSavePath, imagesUrls)
-	if notexsitsrcs == nil {
-		w.pullStepInfo.SetText("no need to pull for all images are already on your disk.")
+	downloadUrls := weedOutByLocal(imagesSavePath, imagesUrls)
+	if downloadUrls == nil || len(downloadUrls) == 0 {
+		w.pullStepInfo.SetText("all images are already on your disk.")
 		return 0
 	}
 
-	total := len(notexsitsrcs)
-	if total == 0 {
-		info := fmt.Sprintf("All images were pulled to local already.")
-		w.pullStepInfo.SetText(info)
-		return 0
-	}
-
-	w.imageTotal = total
-	info := fmt.Sprintf("%v thread(s) for %v images...", threadGen(total), total)
-	w.pullProgressBar.SetRange(0, total)
-	w.pullStepInfo.SetText(info)
-
-	w.autoDownload(imagesSavePath, notexsitsrcs)
+	w.autoDownload(imagesSavePath, downloadUrls)
 
 	return 0
 }
 
-func delbylocal(dirpath string, picurls []string) []string {
+func weedOutByLocal(dirpath string, picurls []string) []string {
 	var neededurls = make([]string, 0)
 	for _, picurl := range picurls {
 		_, fileName := filepath.Split(picurl)
 		localname := dirpath + "/" + fileName
 		exsitmark, err := PathExists(localname)
 		if err != nil {
-			fmt.Println("delbylocal caught error:", err)
+			fmt.Println("weedOutByLocal caught error:", err)
 			continue
 		}
 		if exsitmark == false {
@@ -221,25 +225,15 @@ func delbylocal(dirpath string, picurls []string) []string {
 }
 
 func (w *mangaPullControlWnd) updateImagePullStatus(val int) {
+	w.updatelock.Lock()
 	w.imageProcessed++
 	if val == -1 {
 		w.imagePullFailed++
 	} else {
 		w.imagePullSucceed++
 	}
-
 	w.pullProgressBar.SetValue(w.imageProcessed)
-	if w.imageTotal == w.imageProcessed {
-		// compress
-		w.pullStepInfo.SetText("Compressing...")
-		w.Compress(w.path)
-		w.pullStepInfo.SetText(fmt.Sprintf("Total:%d  Pulled:%d  Failed:%d", w.imageTotal, w.imagePullSucceed, w.imagePullFailed))
-
-		ni, _ := walk.NewNotifyIcon(w.main.Form())
-		ni.SetVisible(true)
-		ni.ShowInfo("Finshed", w.title)
-		ni.Dispose()
-	}
+	w.updatelock.Unlock()
 }
 
 func (w *mangaPullControlWnd) Compress(path string) {
@@ -252,7 +246,9 @@ func (w *mangaPullControlWnd) Compress(path string) {
 
 func threadGen(total int) int {
 	var gates int
-	if total <= 15 {
+	if total <= 1 {
+		gates = 1
+	} else if total <= 15 {
 		gates = 2
 	} else if total <= 30 {
 		gates = 3
@@ -271,12 +267,22 @@ func threadGen(total int) int {
 }
 
 func (w *mangaPullControlWnd) autoDownload(imageSavPath string, imagesUrls []string) {
-	// 切片计算
-	gates := threadGen(len(imagesUrls))
+
+	w.imageTotal = len(imagesUrls)
+	info := fmt.Sprintf("%v thread(s) for %v images...", threadGen(w.imageTotal), w.imageTotal)
+	w.pullStepInfo.SetText(info)
+	w.pullProgressBar.SetRange(0, w.imageTotal)
+	gates := threadGen(w.imageTotal)
 	arry := splitArray(imagesUrls, gates)
 
+	wg := sync.WaitGroup{}
 	for i, url := range arry {
+		wg.Add(1)
 		go func(workid int, url []string) {
+			defer func() {
+				wg.Done()
+			}()
+
 			for _, imageUrl := range url {
 				_, imageFileName := filepath.Split(imageUrl)
 				localname := imageSavPath + "/" + imageFileName
@@ -291,11 +297,23 @@ func (w *mangaPullControlWnd) autoDownload(imageSavPath string, imagesUrls []str
 			}
 		}(i, url)
 	}
+	wg.Wait()
+	if w.imageTotal == w.imageProcessed {
+		// compress
+		w.pullStepInfo.SetText("Compressing...")
+		w.Compress(w.path)
+		w.pullStepInfo.SetText(fmt.Sprintf("Total:%d  Pulled:%d  Failed:%d", w.imageTotal, w.imagePullSucceed, w.imagePullFailed))
+
+		ni, _ := walk.NewNotifyIcon(w.main.Form())
+		ni.SetVisible(true)
+		ni.ShowInfo("Finshed", w.title)
+		ni.Dispose()
+	}
 }
 
-//写入文件
+// 写入文件
 func pullImageFile(localname, url string) error {
-	//读取url的信息
+	// 读取url的信息
 	resp, err := http.Get(url)
 	if err != nil {
 		fmt.Println("pull image file http get error:", err)
@@ -303,7 +321,6 @@ func pullImageFile(localname, url string) error {
 	}
 
 	if resp.Status == "200 OK" {
-
 	} else if resp.Status == "404 Not Found" {
 		switch strings.ToLower(filepath.Ext(url)) {
 		case ".png":
@@ -329,7 +346,7 @@ func pullImageFile(localname, url string) error {
 		return errors.New(resp.Status)
 	}
 
-	//保存在本地绝对名字
+	// 保存在本地绝对名字
 	f, err := os.Create(localname)
 	if err != nil {
 		return err
@@ -363,30 +380,25 @@ type mangaPullControlWnd struct {
 	path, title                                                   string
 }
 
-type mangaHandler struct {
-	wnd                       *mangaPullControlWnd
-	localSavePath, mangaURL   string
-	imagesTotal, imagesPulled int
-}
+// type mangaHandler struct {
+// 	wnd                       *mangaPullControlWnd
+// 	localSavePath, mangaURL   string
+// 	imagesTotal, imagesPulled int
+// }
 
 func pullMangaProject(localSavePath, mangaUrl string) {
-	handle := &mangaHandler{
-		localSavePath: localSavePath,
-		mangaURL:      mangaUrl,
-	}
-
-	handle.wnd = downloadWndCreate(localSavePath, mangaUrl)
-	if handle.wnd == nil {
+	wnd := downloadWndCreate(localSavePath, mangaUrl)
+	if wnd == nil {
 		fmt.Println("Error create manga pull wnd")
 		return
 	}
 
-	// handle.wnd.main.SetFocus()
-	handle.wnd.main.Starting().Attach(func() {
-		handle.wnd.pullManga(localSavePath, mangaUrl)
+	wnd.main.Starting().Attach(func() {
+		ch := make(chan string, 1)
+		go wnd.pullImages(ch, localSavePath, mangaUrl)
+		go wnd.pullMetaInfo(ch, localSavePath, mangaUrl)
 	})
 
-	go handle.wnd.main.Run()
-
+	wnd.main.Run()
 	return
 }
