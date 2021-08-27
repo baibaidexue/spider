@@ -34,11 +34,7 @@ func main() {
 					Label{Text: "download path"},
 					PushButton{Text: "...", Enabled: false, MinSize: Size{Width: 36, Height: 20}, OnClicked: func() {
 						downPath := PATHFINAL
-						if len(downPath) == 0 {
-							walk.MsgBox(nil, "local save dir", "Local save path given is illegal!", walk.MsgBoxOK)
-							return
-						}
-						k.downloadPath.SetText(downPath)
+						_ = k.downloadPath.SetText(downPath)
 					}},
 					TextEdit{MaxSize: Size{Height: 20}, Enabled: false, AssignTo: &k.downloadPath},
 				},
@@ -113,6 +109,15 @@ func main() {
 					}
 				},
 			},
+			PushButton{
+				Text:    "Manga Viewer",
+				Font:    Font{PointSize: 14},
+				MaxSize: Size{Width: 200, Height: 60},
+				MinSize: Size{Width: 200, Height: 40},
+				OnClicked: func() {
+					viewer(k.wnd.Form(), k.downloadPath.Text())
+				},
+			},
 		},
 	}.Create()
 	if err != nil {
@@ -145,8 +150,8 @@ func main() {
 func bringWindowTop(hwnd win.HWND) {
 	win.SetWindowPos(hwnd, win.HWND_TOPMOST, 0, 0, 0, 0, win.SWP_NOMOVE|win.SWP_NOSIZE)
 	win.SetWindowPos(hwnd, win.HWND_NOTOPMOST, 0, 0, 0, 0, win.SWP_SHOWWINDOW|win.SWP_NOSIZE|win.SWP_NOMOVE)
-	win.SetFocus(hwnd)
 	win.SetForegroundWindow(hwnd)
+	win.SetFocus(hwnd)
 	win.SetActiveWindow(hwnd)
 }
 
@@ -178,19 +183,18 @@ type spiderConf struct {
 func (k *godWndMount) loadConfig() {
 	fd, _ := os.Open("conf.json")
 	if fd != nil {
-		defer fd.Close()
 		decoder := json.NewDecoder(fd)
-
 		conf := spiderConf{}
 		err := decoder.Decode(&conf)
 		if err != nil {
 
 		}
+		_ = fd.Close()
 		// const
 		conf.DownloadPath = "star"
 
-		k.downloadPath.SetText(conf.DownloadPath)
-		k.fullUrl.SetText(conf.FullUrl)
+		_ = k.downloadPath.SetText(conf.DownloadPath)
+		_ = k.fullUrl.SetText(conf.FullUrl)
 		k.enableAutoCompress.SetChecked(conf.EnableAutoCompress)
 		k.enableClipBoardCheck.SetChecked(conf.EnableClipBoardListen)
 	}
@@ -199,7 +203,6 @@ func (k *godWndMount) loadConfig() {
 func (k *godWndMount) saveConfig() {
 	fd, err := os.OpenFile("conf.json", os.O_WRONLY|os.O_CREATE, 0666)
 	if err == nil {
-		defer fd.Close()
 
 		s := &spiderConf{
 			DownloadPath:          k.downloadPath.Text(),
@@ -209,7 +212,8 @@ func (k *godWndMount) saveConfig() {
 		}
 		fmt.Println(s)
 		buf, _ := json.Marshal(s)
-		fd.Write(buf)
+		_, _ = fd.Write(buf)
+		_ = fd.Close()
 	} else {
 		fmt.Println("Config file open failed ", err.Error())
 	}

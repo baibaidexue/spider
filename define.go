@@ -1,8 +1,7 @@
 package main
 
 const (
-	PATHDOWNLOAD	= "download"
-	PATHFINAL		= "star"
+	PATHFINAL = "star"
 
-	DIRIMAGES		= "images"
+	DIRIMAGES = "images"
 )
