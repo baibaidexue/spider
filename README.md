@@ -21,9 +21,14 @@ X86平台win10调测运行正常，其余win版本的兼容性未知，可以通
 
 ## 程序主界面
 
-### 程序启动后主界面
+### 程序启动后默认界面
 
 ![main](https://user-images.githubusercontent.com/84616906/131244648-984a7371-491d-4146-b1bb-187973cd3ae6.png)
+
+### 已下载漫画预览
+
+![image](https://user-images.githubusercontent.com/84616906/131247493-140d36a3-9fde-4aa2-92db-bff03ac4a67d.png)
+
 
 ### 漫画管理界面使用右键点击漫画图标执行操作
 
