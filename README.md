@@ -7,7 +7,7 @@
 
 * 下载地址：Release页面( https://github.com/baibaidexue/spider/releases )，zip包解压后运行spider.exe文件
 * 如何开启下载：
-     * 默认开启剪切板监听，判断后询问是否下载（该功能可在setting页面关闭 “clipborad listen ”）
+     * 默认开启剪切板监听，判断后询问是否下载（该功能可在setting页面关闭 “clipboard listen ”）
      * 手动将URL地址粘贴主窗体->new->url 点击开始下载
 * 集成简单的本地漫画管理功能，管理star目录的已下载漫画文件（由于每次都会从本地目录加载，启动会耗费2s~5s左右）
 * 每页数据加载量可通过漫画管理界面左上角下拉选项调整，reload后应用至页面，默认值10
