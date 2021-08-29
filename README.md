@@ -1,12 +1,12 @@
 # spider项目介绍
 
-下载缓存(喵绅士)漫画win工具，使用golang + lxn/walk 开发
+下载缓存及本地查看(喵绅士)漫画win工具，使用golang + lxn/walk 开发
 
 ## 使用
 
-* 下载该项目所有文件
+* 下载Release( https://github.com/baibaidexue/spider/releases )解压
 * 双击spider.exe运行
-* 程序自动监听剪切板变化，询问是否下载 ||  手动粘贴地址至主窗体下载
+* 程序自动监听剪切板变化，询问是否下载（可在setting页面取消勾选clipborad listen） ||  手动粘贴地址至主窗体-new下载
 
 
 ## 运行环境
@@ -14,25 +14,22 @@
 
 X86平台win10调测运行正常，其余win版本的兼容性未知，可以通过实际运行来验证
 
-## 工作目录说明
+## 漫画存放目录
 
 * 当启动spider.exe后，有漫画开始下载时，会在spider程序同样的路径创建star目录用于存放漫画资源
 * star目录下会根据漫画名称划分不同的存放文件夹，该漫画的所有的资源文件均会在各自的目录下存放
 
-## 漫画下载的说明
+## 程序主界面
 
 ### 程序启动后主界面
 
-![image](https://user-images.githubusercontent.com/84616906/126887028-1996ebf8-09b9-46ef-acaf-91e144280ccf.png)
+![main](https://user-images.githubusercontent.com/84616906/131244648-984a7371-491d-4146-b1bb-187973cd3ae6.png)
 
-### 下载方式
-* 手动模式：手动在主界面粘贴喵绅士漫画链接下载
-* 剪切板模式：程序启动当剪切板内容变更，如果被鉴别可能是喵绅士漫画链接，会提示是否下载该链接 （可在主界面配置）
-
-点击下载后，漫画的存放目录为当前spider程序所在的star目录（**不建议更改目录**，在当前目录如果没有star目录程序会自动创建）
+### 漫画管理界面使用右键点击漫画图标执行操作
 
 
-### 下载窗口页介绍
+_____________________
+## 弹出式下载窗口页功能
 
 
 ![downloadinfo](https://user-images.githubusercontent.com/84616906/123549412-794e2800-d79b-11eb-97e4-28f3955f786e.png)
