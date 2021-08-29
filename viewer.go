@@ -107,16 +107,19 @@ func (o *viewerPage) mangaLiked(item string) {
 	}
 	o.TopContext.g.LikedMangas = append([]string{item}, o.TopContext.g.LikedMangas...)
 }
-func (o *viewerPage) mangaUnLiked(item string) {
-	mangalist := o.TopContext.g.LikedMangas
-	i := 0
-	for _, val := range mangalist {
-		if val != item {
-			mangalist[i] = val
-			i++
+
+func removeArrayItem(list []string, item string) (mangalist []string) {
+	listlen := len(list)
+	for i := 0; i < listlen; i++ {
+		if list[i] != item {
+			mangalist = append(mangalist, list[i])
 		}
 	}
-	o.TopContext.g.LikedMangas = mangalist[:i]
+	return
+}
+
+func (o *viewerPage) mangaUnLiked(item string) {
+	o.TopContext.g.LikedMangas = removeArrayItem(o.TopContext.g.LikedMangas, item)
 }
 
 func (o *viewerPage) isLikedManga(item string) bool {
@@ -170,69 +173,119 @@ func (o *viewerPage) widgetCompose(item string) Widget {
 
 	// Style change
 	font := Font{Family: "Sogoe UI", Bold: false, PointSize: 11}
-	color := walk.RGB(255, 255, 255)
 	if o.viewMode == VIEWMODE_ALL && o.isLikedManga(item) {
 		mangaNameFinal = mangaNameAddLikedPrefix(mangaNameFinal)
 		font = Font{Family: "Sogoe UI", Bold: true, PointSize: 11}
-		color = walk.RGB(255, 128, 0)
 	}
 
 	count, size := genMangaInfo(filepath.Dir(item))
 	mangaInfo := fmt.Sprintf("Images:%v      MangaSize: %v MB", count-1, (size/1024)/1024)
 
+	var unlikeStatus *walk.Action
+	var likeStatus *walk.Action
+	var mangaTitle *walk.TextLabel
+	var imageField *walk.ImageView
 	return Composite{
 		Layout: VBox{},
 		Children: []Widget{
 			ImageView{
-				Name:    mangaName,
-				MaxSize: Size{Width: 190, Height: 280},
-				MinSize: Size{Width: 190, Height: 280},
-				Image:   ".\\" + item,
-				Margin:  0,
-				Mode:    ImageViewModeZoom,
+				AssignTo: &imageField,
+				Name:     mangaName,
+				MaxSize:  Size{Width: 190, Height: 280},
+				MinSize:  Size{Width: 190, Height: 280},
+				Image:    ".\\" + item,
+				Margin:   0,
+				Mode:     ImageViewModeZoom,
 				ContextMenuItems: []MenuItem{
 					Action{Text: "Read", OnTriggered: func() {
 						openManga(item)
 					}},
-					Action{Text: "Add Liked", OnTriggered: func() {
-						o.mangaLiked(item)
-					}},
-					Action{Text: "Remove Liked", OnTriggered: func() {
-						o.mangaUnLiked(item)
-					}},
-					Action{Text: "Open file location", OnTriggered: func() {
+					Action{Text: "Open In Explorer", OnTriggered: func() {
 						openExplorerFolder(filepath.Dir(item))
 					}},
-					Action{Text: "Copy mangaName", OnTriggered: func() {
-						walk.Clipboard().SetText(mangaName)
+					Action{Text: "Copy Manga's Name", OnTriggered: func() {
+						_ = walk.Clipboard().SetText(mangaName)
 					}},
-					Action{Text: "Copy mangaUrl", OnTriggered: func() {
-						walk.Clipboard().SetText(getUrlFromMeta(filepath.Dir(item)))
+					Action{Text: "Copy Manga's Url", OnTriggered: func() {
+						_ = walk.Clipboard().SetText(getUrlFromMeta(filepath.Dir(item)))
 					}},
-					Action{Text: "Redownload", OnTriggered: func() {
+					Separator{},
+					Action{AssignTo: &likeStatus, Checked: o.isLikedManga(item), Text: "Add To Favorite",
+						OnTriggered: func() {
+							o.mangaLiked(item)
+							unlikeStatus.SetEnabled(true)
+							_ = likeStatus.SetChecked(true)
+							font, err := walk.NewFont("Sogoe UI", 11, walk.FontBold)
+							if err == nil {
+								mangaTitle.SetFont(font)
+							}
+							_ = mangaTitle.SetText(mangaName)
+						}},
+					Action{AssignTo: &unlikeStatus, Enabled: o.isLikedManga(item), Text: "Remove From Favorite", OnTriggered: func() {
+						o.mangaUnLiked(item)
+						_ = likeStatus.SetChecked(false)
+						font, err := walk.NewFont("Sogoe UI", 11, 0)
+						if err == nil {
+							mangaTitle.SetFont(font)
+						}
+						_ = mangaTitle.SetText(mangaNameAddLikedPrefix(mangaName))
+						unlikeStatus.SetEnabled(false)
+					}},
+					Separator{},
+					Action{Text: "Refresh Status", OnTriggered: func() {
+						count, size := genMangaInfo(filepath.Dir(item))
+						mangaInfo := fmt.Sprintf("Images:%v      MangaSize: %v MB", count-1, (size/1024)/1024)
+						newTips := fmt.Sprintf("%v\n\n\n%v", mangaName, mangaInfo)
+						_ = imageField.SetToolTipText(newTips)
+					}},
+					Action{Text: "Download Again", OnTriggered: func() {
 						url := getUrlFromMeta(filepath.Dir(item))
 						if len(url) > 0 {
 							go pullMangaProject(MangaSrcDir, url, o.TopContext, o.TopContext.g.EnableAutoCompress)
 						}
 					}},
-					Action{Text: "Delete from disk", OnTriggered: func() {
-						// TODO
-						log.Println("not open now")
-						// o.reloadMangaList()
-						// o.refreshCurPage()
+					Separator{},
+					Action{Text: "Delete From Disk", OnTriggered: func() {
+						o.deleteManga(item)
 					}},
 				},
 				ToolTipText: fmt.Sprintf("%v\n\n\n%v", mangaName, mangaInfo),
 			},
 			TextLabel{
+				AssignTo:    &mangaTitle,
 				Text:        mangaNameFinal,
 				Font:        font,
 				MaxSize:     Size{Width: 180, Height: 32},
 				ToolTipText: mangaName,
-				TextColor:   color,
 			},
 		},
 	}
+}
+
+func (o *viewerPage) deleteMangaItem(item string) {
+	if o.isLikedManga(item) {
+		o.mangaUnLiked(item)
+	}
+
+	fmt.Println(o.datasource[:2])
+	o.datasource = removeArrayItem(o.datasource, item)
+	fmt.Println("after delete")
+	fmt.Println(o.datasource[:2])
+}
+
+func (o *viewerPage) deleteManga(item string) {
+	defer timeCost(time.Now(), runFuncName())
+
+	mangaTopDir := filepath.Dir(item)
+	log.Println("Prepare delete", mangaTopDir)
+	o.deleteMangaItem(item)
+	err := os.RemoveAll(mangaTopDir)
+	if err != nil {
+		log.Println(item, " delete failed:", err)
+	}
+
+	delete(o.mangaPageMap, o.listoff)
+	o.refreshCurPage()
 }
 
 func (o *viewerPage) thumbnailListWidgetsInit(list []string) []Widget {
