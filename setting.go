@@ -21,7 +21,7 @@ func newSettingPage(parent walk.Container, mwc *AppMainWindow) (Page, error) {
 		Layout:   VBox{},
 		Children: []Widget{
 			PushButton{
-				Text:    "open download folder",
+				Text:    "Open download folder",
 				MinSize: Size{Width: 200, Height: 60},
 				OnClicked: func() {
 					openExplorerFolder(MangaSrcDir)

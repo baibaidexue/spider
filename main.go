@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	MangaBoxTitle = "Mangabox v1.5"
+	MangaBoxVer   = "1.5.1"
+	MangaBoxTitle = "Mangabox v" + MangaBoxVer
 	MangaSrcDir   = "star"
 	DIRIMAGES     = "images"
 )
@@ -33,7 +34,7 @@ func main() {
 				Text: "&Edit",
 				Items: []MenuItem{
 					Action{
-						Text:        "&exit",
+						Text:        "&Exit",
 						OnTriggered: func() { mw.Close() },
 					},
 				},
@@ -42,15 +43,15 @@ func main() {
 				Text: "&Help",
 				Items: []MenuItem{
 					Action{
-						Text:        "&manual",
+						Text:        "&Manual",
 						OnTriggered: func() { mw.aboutManualTriggered() },
 					},
 					Action{
-						Text:        "&about data store",
+						Text:        "&About Storage",
 						OnTriggered: func() { mw.aboutDataSaveTriggered() },
 					},
 					Action{
-						Text:        "about &mangabox",
+						Text:        "About &Mangabox",
 						OnTriggered: func() { mw.aboutVersionTriggered() },
 					},
 				},
@@ -61,9 +62,9 @@ func main() {
 		},
 		PageCfgs: []PageConfig{
 			{"New", "icon/plus.png", newSpiderPage},
-			{"Local", "icon/go-home.png", newViewAllPage},
-			{"Liked", "icon/emblem-favorite.png", newViewLikedPage},
-			{"Setting", "icon/document-properties.png", newSettingPage},
+			{"View", "icon/go-home.png", newViewAllPage},
+			{"Special", "icon/emblem-favorite.png", newViewLikedPage},
+			{"Settings", "icon/document-properties.png", newSettingPage},
 		},
 	}
 
@@ -99,7 +100,7 @@ type AppMainWindow struct {
 
 func (mw *AppMainWindow) aboutVersionTriggered() {
 	walk.MsgBox(mw,
-		"About MangaBox Ver 1.5",
+		"About "+MangaBoxTitle,
 		"Manga download tool cast by Marine.",
 		walk.MsgBoxOK|walk.MsgBoxIconInformation)
 }
@@ -146,29 +147,26 @@ func (k *AppMainWindow) loadConfig() {
 
 	fd, err := os.Open("conf.json")
 	if err != nil {
-		conf.DownloadPath = MangaSrcDir
 		conf.EnableAutoCompress = true
 		conf.EnableClipBoardListen = true
-		conf.MangaPerPage = 10
-		conf.FullUrl = "https://zha.qqhentai.com/g/369120/"
 	} else {
-		_ = fd.Close()
 		decoder := json.NewDecoder(fd)
-		err := decoder.Decode(&conf)
-		if err != nil {
+		_ = decoder.Decode(&conf)
+		_ = fd.Close()
+	}
 
-		}
-		// const
-		conf.DownloadPath = MangaSrcDir
-		if conf.MangaPerPage == 0 {
-			conf.MangaPerPage = 10
-		}
+	conf.DownloadPath = MangaSrcDir
+	if conf.MangaPerPage == 0 {
+		conf.MangaPerPage = 10
+	}
+	if len(conf.FullUrl) == 0 {
+		conf.FullUrl = "https://zha.qqhentai.com/g/369120/"
 	}
 	k.g = &conf
 }
 
 func (k *AppMainWindow) saveConfig() {
-	fd, err := os.OpenFile("conf.json", os.O_WRONLY|os.O_CREATE, 0666)
+	fd, err := os.OpenFile("conf.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err == nil {
 		buf, _ := json.Marshal(k.g)
 		_, _ = fd.Write(buf)

@@ -9,10 +9,7 @@ import (
 
 type spiderPage struct {
 	*walk.Composite
-	fullUrl              *walk.TextEdit
-	downloadPath         *walk.TextEdit
-	enableClipBoardCheck *walk.CheckBox
-	enableAutoCompress   *walk.CheckBox
+	fullUrl *walk.TextEdit
 }
 
 func newSpiderPage(parent walk.Container, mw *AppMainWindow) (Page, error) {
@@ -29,25 +26,6 @@ func newSpiderPage(parent walk.Container, mw *AppMainWindow) (Page, error) {
 				OnClicked: func() {
 					openExplorerFolder(MangaSrcDir)
 				}},
-			Composite{
-				Layout: Grid{Columns: 1},
-				Children: []Widget{
-					Label{
-						Text:    "",
-						MinSize: Size{Height: 10},
-					},
-				},
-			},
-
-			Composite{
-				Layout: Grid{Columns: 1},
-				Children: []Widget{
-					Label{
-						Text:    "",
-						MinSize: Size{Height: 10},
-					},
-				},
-			},
 			Composite{
 				Layout: Grid{Columns: 2},
 				Children: []Widget{
