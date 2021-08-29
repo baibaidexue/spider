@@ -1,11 +1,15 @@
 package main
 
 import (
-	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
+	"time"
+
+	"github.com/lxn/walk"
 )
 
 func PathExists(path string) (bool, error) {
@@ -19,25 +23,21 @@ func PathExists(path string) (bool, error) {
 	return false, err
 }
 
-func CreatDirIfNotHad(_dir string) {
+func CreatDirIfNotHad(_dir string) error {
 	exist, err := PathExists(_dir)
 	if err != nil {
-		fmt.Printf("get dir error![%v]\n", err)
-		return
+		return err
 	}
 
 	if exist == false {
-		fmt.Printf("[%v] directory not exists.\n", _dir)
 		err := os.Mkdir(_dir, os.ModePerm)
 		if err != nil {
-			fmt.Printf("[%v] directory create failed:%v!\n", _dir, err)
-		} else {
-			fmt.Printf("[%v] directory created success!\n", _dir)
+			return err
 		}
 	}
+	return nil
 }
 
-// 多个goroutine各自负责一片区域逻辑变更为总体按照顺序下载
 func splitArray(arr []string, num int) [][]string {
 	max := len(arr)
 	if max < num {
@@ -50,7 +50,6 @@ func splitArray(arr []string, num int) [][]string {
 	for i := 0; i < max; {
 		for j := 0; j < num; j++ {
 			segments[j] = append(segments[j], arr[i])
-
 			i++
 			if i == max {
 				return segments
@@ -61,26 +60,20 @@ func splitArray(arr []string, num int) [][]string {
 }
 
 func HttpGet(url string) (result string, err error) {
-	resp, err1 := http.Get(url)
-	if err1 != nil {
-		err = err1
-		return
+	client := http.Client{
+		Timeout: time.Duration(20 * time.Second),
+	}
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", err
 	}
 	defer resp.Body.Close()
-	buf := make([]byte, 4096)
-	for {
-		n, err2 := resp.Body.Read(buf)
-		if n == 0 {
-			break
-		}
-		if err2 != nil && err2 != io.EOF {
-			err = err2
-			return
-		}
-		result += string(buf[:n])
 
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
 	}
-	return
+	return string(data), nil
 }
 
 func openExplorerFolder(path string) {
@@ -90,17 +83,30 @@ func openExplorerFolder(path string) {
 	cmd.Run()
 }
 
-//func getCurrentAbPathByCaller() string {
-//	var abPath string
-//	_, filename, _, ok := runtime.Caller(0)
-//	if ok {
-//		abPath = path.Dir(filename)
-//	}
-//	return abPath
-//}
-
 func GetCurrentPath() string {
 	var projectPath string
 	projectPath, _ = os.Getwd()
 	return projectPath
+}
+
+func NotifyBarCall(title, body string, form walk.Form) {
+	ni, err := walk.NewNotifyIcon(form)
+	if err != nil {
+		return
+	}
+	defer ni.Dispose()
+	ni.SetVisible(true)
+	ni.ShowInfo(title, body)
+}
+
+func timeCost(start time.Time, funcname string) {
+	tc := time.Since(start)
+	log.Printf("%v #### Time cost = %v\n", funcname, tc)
+}
+
+func runFuncName() string {
+	pc := make([]uintptr, 1)
+	runtime.Callers(2, pc)
+	f := runtime.FuncForPC(pc[0])
+	return f.Name()
 }
