@@ -2,10 +2,14 @@ package main
 
 import (
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
 	"time"
+
+	"github.com/lxn/walk"
 )
 
 func PathExists(path string) (bool, error) {
@@ -83,4 +87,26 @@ func GetCurrentPath() string {
 	var projectPath string
 	projectPath, _ = os.Getwd()
 	return projectPath
+}
+
+func NotifyBarCall(title, body string, form walk.Form) {
+	ni, err := walk.NewNotifyIcon(form)
+	if err != nil {
+		return
+	}
+	defer ni.Dispose()
+	ni.SetVisible(true)
+	ni.ShowInfo(title, body)
+}
+
+func timeCost(start time.Time, funcname string) {
+	tc := time.Since(start)
+	log.Printf("%v #### Time cost = %v\n", funcname, tc)
+}
+
+func runFuncName() string {
+	pc := make([]uintptr, 1)
+	runtime.Callers(2, pc)
+	f := runtime.FuncForPC(pc[0])
+	return f.Name()
 }

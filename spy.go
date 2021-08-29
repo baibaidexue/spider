@@ -16,8 +16,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-func downloadWndCreate(localSavePath, mangaUrl string) *mangaPullControlWnd {
+func downloadWndCreate(localSavePath, mangaUrl string, topContext *AppMainWindow) *mangaPullControlWnd {
 	var wnd mangaPullControlWnd
+	wnd.topContext = topContext
 	_ = Dialog{
 		AssignTo: &wnd.main,
 		Title:    mangaUrl,
@@ -44,7 +45,7 @@ func downloadWndCreate(localSavePath, mangaUrl string) *mangaPullControlWnd {
 			PushButton{
 				Text: "(┬┬﹏┬┬) images repull",
 				OnClicked: func() {
-					go wnd.pullImages(nil, localSavePath, mangaUrl, false)
+					go wnd.pullImages(nil, localSavePath, mangaUrl, wnd.topContext, false)
 				},
 				// Visible:  false,
 				Enabled:  false,
@@ -66,7 +67,7 @@ func downloadWndCreate(localSavePath, mangaUrl string) *mangaPullControlWnd {
 			PushButton{
 				Text: "(^///^) open manga's folder",
 				OnClicked: func() {
-					mangaLocalFolder := PATHFINAL + "\\" + wnd.main.Title()
+					mangaLocalFolder := MangaSrcDir + "\\" + wnd.main.Title()
 					openExplorerFolder(mangaLocalFolder)
 				},
 			},
@@ -180,7 +181,7 @@ func beautyTitle(origin string) (mangaTitle string) {
 	return
 }
 
-func (w *mangaPullControlWnd) pullImages(ch chan string, savePath, mangaUrl string, autoCompress bool) int {
+func (w *mangaPullControlWnd) pullImages(ch chan string, savePath, mangaUrl string, topContext *AppMainWindow, autoCompress bool) int {
 	mangaListPageUrl := mangaUrl + "list2/"
 	fmt.Println("Fetch manga's image list page:", mangaListPageUrl)
 	mangaListPageResult, err := HttpGet(mangaListPageUrl)
@@ -219,7 +220,7 @@ func (w *mangaPullControlWnd) pullImages(ch chan string, savePath, mangaUrl stri
 		return 0
 	}
 
-	w.autoDownload(imagesSavePath, downloadUrls, autoCompress)
+	w.autoDownload(imagesSavePath, downloadUrls, topContext, autoCompress)
 
 	return 0
 }
@@ -284,7 +285,7 @@ func threadGen(total int) (count int) {
 	return count
 }
 
-func (w *mangaPullControlWnd) autoDownload(imageSavPath string, imagesUrls []string, autoCompress bool) {
+func (w *mangaPullControlWnd) autoDownload(imageSavPath string, imagesUrls []string, topContext *AppMainWindow, autoCompress bool) {
 
 	w.imageTotal = len(imagesUrls)
 	threadCount := threadGen(w.imageTotal)
@@ -327,6 +328,8 @@ func (w *mangaPullControlWnd) autoDownload(imageSavPath string, imagesUrls []str
 		_ = ni.SetVisible(true)
 		_ = ni.ShowInfo("Finshed", w.title)
 		_ = ni.Dispose()
+
+		// topContext.reloadMangaList()
 	}
 }
 
@@ -378,6 +381,7 @@ func pullImageFile(localname, url string) error {
 
 // 配置取用一个全局的对象
 type mangaPullControlWnd struct {
+	topContext                         *AppMainWindow
 	main                               *walk.Dialog
 	mangaCover                         *walk.ImageView
 	pullStepInfo                       *walk.Label
@@ -389,16 +393,16 @@ type mangaPullControlWnd struct {
 	path, title                                                   string
 }
 
-func pullMangaProject(localSavePath, mangaUrl string, autoCompress bool) {
-	wnd := downloadWndCreate(localSavePath, mangaUrl)
+func pullMangaProject(localSavePath, mangaUrl string, topContext *AppMainWindow, autoCompress bool) {
+	wnd := downloadWndCreate(localSavePath, mangaUrl, topContext)
 	if wnd == nil {
-		fmt.Println("Error create manga pull wnd")
+		fmt.Println("Error create manga download wnd")
 		return
 	}
 
 	wnd.main.Starting().Attach(func() {
 		ch := make(chan string, 1)
-		go wnd.pullImages(ch, localSavePath, mangaUrl, autoCompress)
+		go wnd.pullImages(ch, localSavePath, mangaUrl, topContext, autoCompress)
 		go wnd.pullMetaInfo(ch, localSavePath, mangaUrl)
 	})
 
