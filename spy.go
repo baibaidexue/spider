@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -336,15 +338,18 @@ func (w *mangaPullControlWnd) autoDownload(imageSavPath string, imagesUrls []str
 func pullImageFile(localname, url string) error {
 	fmt.Println("Download:", "[", url, "]", " >> ", localname)
 	client := http.Client{
-		Timeout: time.Duration(18 * time.Second),
+		Transport: &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout: 15 * time.Second,
+			}).Dial,
+		},
 	}
 	resp, err := client.Get(url)
 	if err != nil {
 		return errors.New(fmt.Sprintf(" HTTP get failed:%v", err.Error()))
 	}
 
-	if resp.Status == "200 OK" {
-	} else if resp.Status == "404 Not Found" {
+	if resp.Status == "404 Not Found" {
 		switch strings.ToLower(filepath.Ext(url)) {
 		case ".png":
 			localname = localname[:len(localname)-3] + "jpg"
@@ -363,7 +368,9 @@ func pullImageFile(localname, url string) error {
 		if resp.Status != "200 OK" {
 			return errors.New(fmt.Sprintf(" HTTP bad status:%v", resp.Status))
 		}
-	} else {
+	}
+
+	if resp.Status != "200 OK" {
 		return errors.New(fmt.Sprintf(" HTTP bad status:%v", resp.Status))
 	}
 
@@ -373,7 +380,16 @@ func pullImageFile(localname, url string) error {
 		return err
 	}
 
-	io.Copy(f, resp.Body)
+	if resp.ContentLength > 0 {
+		_, err = io.CopyN(f, resp.Body, resp.ContentLength)
+	} else {
+		_, err = io.Copy(f, resp.Body)
+	}
+
+	if err != nil && err != io.EOF {
+		log.Println("Manga image body read:", err)
+	}
+
 	_ = resp.Body.Close()
 	_ = f.Close()
 	return nil

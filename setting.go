@@ -18,28 +18,22 @@ func newSettingPage(parent walk.Container, mwc *AppMainWindow) (Page, error) {
 	o := new(settingPage)
 	err := Composite{
 		AssignTo: &o.Composite,
-		Layout:   VBox{},
+		Layout:   VBox{Alignment: AlignHNearVFar},
 		Children: []Widget{
 			PushButton{
-				Text:    "Open download folder",
+				Text: "Open download folder",
+				// Font:    Font{Family: "Sogoe UI", Bold: false, PointSize: 12},
 				MinSize: Size{Width: 200, Height: 60},
 				OnClicked: func() {
 					openExplorerFolder(MangaSrcDir)
-				}},
-			Composite{
-				Layout: Grid{Columns: 1},
-				Children: []Widget{
-					Label{
-						Text:    "",
-						MinSize: Size{Height: 10},
-					},
 				},
 			},
 			Composite{
-				Layout: Grid{Columns: 2, Alignment: AlignHNearVCenter},
+				Layout: Grid{Columns: 2, Alignment: AlignHNearVNear},
 				Children: []Widget{
 					Label{
 						Text:        "Enable clipboard listen",
+						Font:        Font{Family: "Sogoe UI", Bold: false, PointSize: 12},
 						ToolTipText: "Check if clipboard has a downloadable url",
 					},
 					CheckBox{
@@ -51,8 +45,8 @@ func newSettingPage(parent walk.Container, mwc *AppMainWindow) (Page, error) {
 						},
 					},
 					Label{
-						Text: "Enable auto compress",
-						// MinSize: Size{Height: 10},
+						Text:        "Enable auto compress",
+						Font:        Font{Family: "Sogoe UI", Bold: false, PointSize: 12},
 						ToolTipText: "while download complete start image compress to zip",
 					},
 					CheckBox{
@@ -79,6 +73,10 @@ func newSettingPage(parent walk.Container, mwc *AppMainWindow) (Page, error) {
 	}.Create(NewBuilder(parent))
 	if err != nil {
 		walk.MsgBox(nil, "Spider page Create Error", err.Error(), walk.MsgBoxOK)
+		return nil, err
+	}
+
+	if err := walk.InitWrapperWindow(o); err != nil {
 		return nil, err
 	}
 

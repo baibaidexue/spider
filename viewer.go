@@ -34,23 +34,23 @@ func sortByTime(pl []os.FileInfo) []os.FileInfo {
 	return pl
 }
 
-func genMangaInfo(path string) (imgcount int, mangaSize int64) {
+func genMangaInfo(path string) (imgCount int, mangaSize int64) {
 	rd, err := ioutil.ReadDir(path)
 	if err != nil {
 		return 0, 0
 	}
 	for _, fi := range rd {
 		if fi.IsDir() {
-			dirimg, dirsize := genMangaInfo(filepath.Join(path, fi.Name()))
-			imgcount += dirimg
-			mangaSize += dirsize
+			innerCount, innerSize := genMangaInfo(filepath.Join(path, fi.Name()))
+			imgCount += innerCount
+			mangaSize += innerSize
 		}
 
 		if strings.HasSuffix(fi.Name(), ".jpg") {
-			imgcount++
+			imgCount++
 		}
 		if strings.HasSuffix(fi.Name(), ".png") {
-			imgcount++
+			imgCount++
 		}
 		mangaSize += fi.Size()
 	}
@@ -131,13 +131,10 @@ func (o *viewerPage) isLikedManga(item string) bool {
 	return false
 }
 
-const MangaLikedPrefix = "❤️"
+const MangaLikedPrefix = "❤️ - "
 
 func mangaNameAddLikedPrefix(ori string) string {
 	return MangaLikedPrefix + ori
-}
-func mangaNameRemoveLikedPrefix(ori string) string {
-	return ori[len(MangaLikedPrefix):]
 }
 
 func getUrlFromMeta(path string) (url string) {
@@ -173,7 +170,7 @@ func (o *viewerPage) widgetCompose(item string) Widget {
 
 	// Style change
 	font := Font{Family: "Sogoe UI", Bold: false, PointSize: 11}
-	if o.viewMode == VIEWMODE_ALL && o.isLikedManga(item) {
+	if o.viewMode == ViewmodeAll && o.isLikedManga(item) {
 		mangaNameFinal = mangaNameAddLikedPrefix(mangaNameFinal)
 		font = Font{Family: "Sogoe UI", Bold: true, PointSize: 11}
 	}
@@ -207,19 +204,32 @@ func (o *viewerPage) widgetCompose(item string) Widget {
 						_ = walk.Clipboard().SetText(mangaName)
 					}},
 					Action{Text: "Copy Manga's Url", OnTriggered: func() {
+						o.TopContext.copyFromMangaBoxInner = true
 						_ = walk.Clipboard().SetText(getUrlFromMeta(filepath.Dir(item)))
+
+					}},
+					Separator{},
+					Action{Text: "Export manga zip", OnTriggered: func() {
+						targetDir := o.outputDir.Text()
+						log.Println(targetDir)
+						if len(targetDir) > 0 {
+							srcFile := item[:len(item)-4] + ".zip"
+							outFile := filepath.Join(targetDir, mangaName+".zip")
+							exportMangaData(srcFile, outFile)
+						}
 					}},
 					Separator{},
 					Action{AssignTo: &likeStatus, Checked: o.isLikedManga(item), Text: "Add To Favorite",
 						OnTriggered: func() {
 							o.mangaLiked(item)
-							unlikeStatus.SetEnabled(true)
+							_ = unlikeStatus.SetEnabled(true)
 							_ = likeStatus.SetChecked(true)
 							font, err := walk.NewFont("Sogoe UI", 11, walk.FontBold)
 							if err == nil {
 								mangaTitle.SetFont(font)
 							}
-							_ = mangaTitle.SetText(mangaName)
+							_ = mangaTitle.SetText(mangaNameAddLikedPrefix(mangaName))
+
 						}},
 					Action{AssignTo: &unlikeStatus, Enabled: o.isLikedManga(item), Text: "Remove From Favorite", OnTriggered: func() {
 						o.mangaUnLiked(item)
@@ -228,8 +238,8 @@ func (o *viewerPage) widgetCompose(item string) Widget {
 						if err == nil {
 							mangaTitle.SetFont(font)
 						}
-						_ = mangaTitle.SetText(mangaNameAddLikedPrefix(mangaName))
-						unlikeStatus.SetEnabled(false)
+						_ = mangaTitle.SetText(mangaName)
+						_ = unlikeStatus.SetEnabled(false)
 					}},
 					Separator{},
 					Action{Text: "Refresh Status", OnTriggered: func() {
@@ -267,23 +277,21 @@ func (o *viewerPage) deleteMangaItem(item string) {
 		o.mangaUnLiked(item)
 	}
 
-	fmt.Println(o.datasource[:2])
 	o.datasource = removeArrayItem(o.datasource, item)
-	fmt.Println("after delete")
-	fmt.Println(o.datasource[:2])
 }
 
 func (o *viewerPage) deleteManga(item string) {
 	defer timeCost(time.Now(), runFuncName())
 
 	mangaTopDir := filepath.Dir(item)
-	log.Println("Prepare delete", mangaTopDir)
+
 	o.deleteMangaItem(item)
 	err := os.RemoveAll(mangaTopDir)
+
 	if err != nil {
 		log.Println(item, " delete failed:", err)
 	}
-
+	log.Println("Deleted ", mangaTopDir)
 	delete(o.mangaPageMap, o.listoff)
 	o.refreshCurPage()
 }
@@ -301,8 +309,8 @@ type mangaViewPage struct {
 	*walk.Composite
 }
 
-const VIEWMODE_ALL = "All"
-const VIEWMODE_LIKED = "Liked"
+const ViewmodeAll = "All"
+const ViewmodeLiked = "Special"
 
 type viewerPage struct {
 	TopContext *AppMainWindow
@@ -311,6 +319,8 @@ type viewerPage struct {
 	viewMode   string
 	mangaCom   *walk.Composite
 	datasource []string
+
+	outputDir *walk.LineEdit
 
 	loadCombox                  *walk.ComboBox
 	perLoadCnt                  int
@@ -323,10 +333,6 @@ type viewerPage struct {
 	nexbut *walk.PushButton
 	hombut *walk.PushButton
 	endbut *walk.PushButton
-}
-
-func (o *viewerPage) pageThumbnailListWidgetsInit(head, tail int) []Widget {
-	return o.thumbnailListWidgetsInit(o.datasource[head:tail])
 }
 
 func (o *viewerPage) getViewRange(off int) (data []string, err error) {
@@ -379,6 +385,7 @@ func (o *viewerPage) newMangaReaderPage(parent walk.Container, publishOff int) (
 	if err := walk.InitWrapperWindow(m); err != nil {
 		return nil, err
 	}
+
 	return m, nil
 }
 
@@ -398,9 +405,9 @@ func (o *viewerPage) reloadMangaListOfGlobal() {
 func (o *viewerPage) reloadMangaList() {
 	defer timeCost(time.Now(), runFuncName())
 	switch o.viewMode {
-	case VIEWMODE_ALL:
+	case ViewmodeAll:
 		o.reloadMangaListOfPath(MangaSrcDir)
-	case VIEWMODE_LIKED:
+	case ViewmodeLiked:
 		o.reloadMangaListOfGlobal()
 	}
 }
@@ -425,7 +432,7 @@ func (o *viewerPage) switchMangaPage(id int) error {
 
 	o.currentPage = publishPage
 	o.currentPage.SetVisible(true)
-	o.currentPage.SetFocus()
+	_ = o.currentPage.SetFocus()
 	o.currentPageChangedPublisher.Publish()
 
 	return nil
@@ -492,6 +499,7 @@ func newViewContainerPage(parent walk.Container, mw *AppMainWindow, viewMode str
 		Name:     "viewerPage",
 		Layout:   VBox{},
 		Children: []Widget{
+			LineEdit{AssignTo: &o.outputDir, ToolTipText: "Manga export absolute path."},
 			Composite{
 				// OnKeyDown: func(key walk.Key) {
 				// 	switch key {
@@ -556,7 +564,6 @@ func newViewContainerPage(parent walk.Container, mw *AppMainWindow, viewMode str
 						Text:        "<<",
 						AssignTo:    &o.hombut,
 						ToolTipText: "goto first page",
-						//MinSize: Size{Width: 100, Height: 80},
 						OnClicked: func() {
 							o.switchFirPage()
 						},
@@ -566,7 +573,6 @@ func newViewContainerPage(parent walk.Container, mw *AppMainWindow, viewMode str
 						Text:        "<",
 						AssignTo:    &o.prebut,
 						ToolTipText: "previous page",
-						//MinSize: Size{Width: 100, Height: 80},
 						OnClicked: func() {
 							o.switchPrevPage()
 						},
@@ -575,7 +581,6 @@ func newViewContainerPage(parent walk.Container, mw *AppMainWindow, viewMode str
 						Text:        ">",
 						AssignTo:    &o.nexbut,
 						ToolTipText: "next page",
-						//MinSize: Size{Width: 100, Height: 80},
 						OnClicked: func() {
 							o.switchNextPage()
 						},
@@ -587,7 +592,6 @@ func newViewContainerPage(parent walk.Container, mw *AppMainWindow, viewMode str
 						Text:        ">>",
 						AssignTo:    &o.endbut,
 						ToolTipText: "goto end page",
-						//MinSize: Size{Width: 100, Height: 80},
 						OnClicked: func() {
 							o.switchLastPage()
 						},
@@ -615,10 +619,10 @@ func newViewContainerPage(parent walk.Container, mw *AppMainWindow, viewMode str
 
 func newViewAllPage(parent walk.Container, mw *AppMainWindow) (Page, error) {
 	defer timeCost(time.Now(), runFuncName())
-	return newViewContainerPage(parent, mw, VIEWMODE_ALL)
+	return newViewContainerPage(parent, mw, ViewmodeAll)
 }
 
 func newViewLikedPage(parent walk.Container, mw *AppMainWindow) (Page, error) {
 	defer timeCost(time.Now(), runFuncName())
-	return newViewContainerPage(parent, mw, VIEWMODE_LIKED)
+	return newViewContainerPage(parent, mw, ViewmodeLiked)
 }
