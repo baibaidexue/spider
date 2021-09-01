@@ -110,3 +110,24 @@ func runFuncName() string {
 	f := runtime.FuncForPC(pc[0])
 	return f.Name()
 }
+
+func fileCopy(sourceFile, destinationFile string) {
+	source, err := os.Open(sourceFile)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer source.Close()
+
+	destination, err := os.Create(destinationFile)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	if err != nil {
+		log.Println(err)
+	}
+}

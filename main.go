@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	MangaBoxVer   = "1.5.1"
+	MangaBoxVer   = "1.5.2"
 	MangaBoxTitle = "Mangabox v" + MangaBoxVer
 	MangaSrcDir   = "star"
 	DIRIMAGES     = "images"
@@ -23,6 +23,7 @@ const (
 func main() {
 	mw := new(AppMainWindow)
 	mw.loadConfig()
+	mw.copyFromMangaBoxInner = false
 
 	cfg := &MultiPageMainWindowConfig{
 		Name:       MangaBoxTitle,
@@ -33,9 +34,18 @@ func main() {
 			Menu{
 				Text: "&Edit",
 				Items: []MenuItem{
+					Action{Text: "&Open Manga Folder", OnTriggered: func() {
+						openExplorerFolder(MangaSrcDir)
+					}},
+					Separator{},
+					Action{Text: "&Save Config", OnTriggered: func() {
+						mw.saveConfig()
+						NotifyBarCall("Config", "Config saved ok.", mw.Form())
+					}},
+					Separator{},
 					Action{
 						Text:        "&Exit",
-						OnTriggered: func() { mw.Close() },
+						OnTriggered: func() { _ = mw.Close() },
 					},
 				},
 			},
@@ -77,6 +87,10 @@ func main() {
 	mw.mainWindowConf = mpmw
 
 	walk.Clipboard().ContentsChanged().Attach(func() {
+		if mw.copyFromMangaBoxInner {
+			mw.copyFromMangaBoxInner = false
+			return
+		}
 		if mw.g.EnableClipBoardListen == false {
 			return
 		}
@@ -95,27 +109,28 @@ func main() {
 type AppMainWindow struct {
 	*mainWindowConf
 
-	g *globalSetting
+	g                     *globalSetting
+	copyFromMangaBoxInner bool // 不响应内部自拷贝的url
 }
 
 func (mw *AppMainWindow) aboutVersionTriggered() {
-	walk.MsgBox(mw,
+	walk.MsgBox(mw.Form(),
 		"About "+MangaBoxTitle,
 		"Manga download tool cast by Marine.",
 		walk.MsgBoxOK|walk.MsgBoxIconInformation)
 }
 
 func (mw *AppMainWindow) aboutManualTriggered() {
-	walk.MsgBox(mw,
+	walk.MsgBox(mw.Form(),
 		"MangaBox Manual",
-		"Use my mentor under my guide",
+		"Just download and enjoy. Remember reload manually.",
 		walk.MsgBoxOK|walk.MsgBoxIconInformation)
 }
 
 func (mw *AppMainWindow) aboutDataSaveTriggered() {
-	walk.MsgBox(mw,
-		"About Data store",
-		fmt.Sprintf("User data will save to or load from \"star\" located with \"spider.exe\", named with manga's name."),
+	walk.MsgBox(mw.Form(),
+		"About manga's location",
+		fmt.Sprintf("Manga data will save/load from \"star\" located with \"spider.exe\"."),
 		walk.MsgBoxOK|walk.MsgBoxIconInformation)
 }
 
@@ -128,7 +143,7 @@ func (mw *AppMainWindow) updateTitle(prefix string) {
 		buf.WriteString(prefix)
 	}
 
-	mw.SetTitle(buf.String())
+	_ = mw.SetTitle(buf.String())
 }
 
 type globalSetting struct {
@@ -141,7 +156,7 @@ type globalSetting struct {
 	LikedMangas []string
 }
 
-func (k *AppMainWindow) loadConfig() {
+func (mw *AppMainWindow) loadConfig() {
 	defer timeCost(time.Now(), runFuncName())
 	conf := globalSetting{}
 
@@ -162,13 +177,13 @@ func (k *AppMainWindow) loadConfig() {
 	if len(conf.FullUrl) == 0 {
 		conf.FullUrl = "https://zha.qqhentai.com/g/369120/"
 	}
-	k.g = &conf
+	mw.g = &conf
 }
 
-func (k *AppMainWindow) saveConfig() {
+func (mw *AppMainWindow) saveConfig() {
 	fd, err := os.OpenFile("conf.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err == nil {
-		buf, _ := json.Marshal(k.g)
+		buf, _ := json.Marshal(mw.g)
 		_, _ = fd.Write(buf)
 		_ = fd.Close()
 	} else {

@@ -94,7 +94,7 @@ func CreateMainWindow(cfg *MultiPageMainWindowConfig, mw *AppMainWindow) (*mainW
 		OnMouseMove:      cfg.OnMouseMove,
 		OnMouseUp:        cfg.OnMouseUp,
 		OnSizeChanged:    cfg.OnSizeChanged,
-		Layout:           HBox{MarginsZero: true, SpacingZero: true},
+		Layout:           HBox{MarginsZero: true, SpacingZero: true, Alignment: AlignHNearVFar},
 		Children: []Widget{
 			ScrollView{
 				HorizontalFixed: true,
@@ -151,7 +151,6 @@ func CreateMainWindow(cfg *MultiPageMainWindowConfig, mw *AppMainWindow) (*mainW
 
 	// 初始化时设置第一个页面显示
 	if len(mpmw.pageActions) > 0 {
-		// TODO 修改回初始值 0
 		if err := mpmw.switchPage(mpmw.pageActions[1]); err != nil {
 			return nil, err
 		}
@@ -173,69 +172,6 @@ func CreateMainWindow(cfg *MultiPageMainWindowConfig, mw *AppMainWindow) (*mainW
 	succeeded = true
 
 	return mpmw, nil
-}
-
-// func (mw *mainWindowConf) SavePageData() {
-// 	for _, curAct := range mw.pageActions {
-// 		curPage := mw.actionPageMap[curAct]
-// 		curPage.SaveDataLocal()
-// 	}
-// 	NotifyBarCall("Saved succeed.", "All configured data saved. Exit ok. ", mw)
-// }
-
-func RunCheckDataSaveWnd(owner walk.Form) bool {
-	var dlg *walk.Dialog
-	var acceptPB, cancelPB *walk.PushButton
-	var ret bool
-
-	_, _ = Dialog{
-		AssignTo:      &dlg,
-		Title:         "Data save check",
-		DefaultButton: &acceptPB,
-		CancelButton:  &cancelPB,
-		Icon:          "button/save.png",
-		Layout:        VBox{},
-		MinSize:       Size{Width: 100, Height: 80},
-		Children: []Widget{
-			Composite{
-				Layout: HBox{},
-				Children: []Widget{
-					// Composite{
-					// 	Layout: HBox{},
-					// 	Children: []Widget{
-					// 		Label{
-					// 			Text: "Saving data"
-					// 		},
-					// 	},
-					// },
-					Composite{
-						Layout: HBox{},
-						Children: []Widget{
-							// HSpacer{},
-							PushButton{
-								AssignTo: &acceptPB,
-								Text:     "Save data",
-								OnClicked: func() {
-									dlg.Accept()
-									ret = true
-								},
-							},
-							PushButton{
-								AssignTo: &cancelPB,
-								Text:     "Don't save",
-								OnClicked: func() {
-									dlg.Cancel()
-									ret = false
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}.Run(owner)
-
-	return ret
 }
 
 func (mw *mainWindowConf) CurrentPage() Page {
@@ -293,8 +229,7 @@ func (mw *mainWindowConf) switchPage(action *walk.Action) error {
 		prevPage.SetVisible(false)
 	}
 
-	// 标识接下来的函数动作不再需要处理了吗？
-	action.SetChecked(true)
+	_ = action.SetChecked(true)
 
 	// 将当前的显示区域的页面更新为新的页面元素，并且调用渲染函数重新渲染界面
 	mw.currentPage = mw.actionPageMap[action]
@@ -308,17 +243,17 @@ func (mw *mainWindowConf) switchPage(action *walk.Action) error {
 func (mw *mainWindowConf) setCurrentAction(action *walk.Action) error {
 	defer func() {
 		if !mw.pageCom.IsDisposed() {
-			mw.pageCom.RestoreState()
+			_ = mw.pageCom.RestoreState()
 		}
 	}()
 
-	mw.SetFocus()
+	_ = mw.SetFocus()
 
 	// 释放当前的分页系统资源
 	if prevPage := mw.currentPage; prevPage != nil {
-		mw.pageCom.SaveState()
+		_ = mw.pageCom.SaveState()
 		prevPage.SetVisible(false)
-		prevPage.(walk.Widget).SetParent(nil)
+		_ = prevPage.(walk.Widget).SetParent(nil)
 		prevPage.Dispose()
 	}
 
@@ -329,8 +264,7 @@ func (mw *mainWindowConf) setCurrentAction(action *walk.Action) error {
 		return err
 	}
 
-	// 标识接下来的函数动作不再需要处理了吗？
-	action.SetChecked(true)
+	_ = action.SetChecked(true)
 
 	// 将当前的显示区域的页面更新为新的页面元素，并且调用渲染函数重新渲染界面
 	mw.currentPage = page

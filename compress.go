@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -44,7 +45,7 @@ func Zip(srcFile string, destZip string) error {
 			return err
 		}
 
-		if ! info.IsDir() {
+		if !info.IsDir() {
 			file, err := os.Open(path)
 			if err != nil {
 				return err
@@ -56,4 +57,19 @@ func Zip(srcFile string, destZip string) error {
 	})
 
 	return err
+}
+
+func exportMangaData(srcFile, dstFile string) {
+	log.Println("input:", srcFile)
+	log.Println("output:", dstFile)
+	if ok, _ := PathExists(srcFile); ok {
+		fileCopy(srcFile, dstFile)
+		return
+	}
+	mangaDir := filepath.Dir(srcFile)
+	imageDir := filepath.Join(mangaDir, DIRIMAGES)
+	err := Zip(imageDir, dstFile)
+	if err != nil {
+		log.Println(err)
+	}
 }
